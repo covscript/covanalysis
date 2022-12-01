@@ -1,0 +1,60 @@
+package analysis
+
+import analysis_impl
+
+class selection
+    var raw_data = null
+    var cols = new array
+    function filter(cond)
+        return analysis.filter(*raw_data, cols, cond)
+    end
+    function __groupby_impl(iteration, data, idx)
+        var result = analysis.groupby(data, cols.at(idx))
+        if iteration > 0
+            foreach it in result do it.second = __groupby_impl(iteration - 1, it.second, idx + 1)
+        end
+        return move(result)
+    end
+    function groupby()
+        return __groupby_impl(cols.size - 1, *raw_data, 0)
+    end
+end
+
+class dataframe
+    var header = null
+    var data = null
+    function columns(...args)
+        var col = new selection
+        col.raw_data = &data
+        if args.empty()
+            foreach it in range(header.size) do col.cols.push_back(it)
+        else
+            foreach it in args do col.cols.push_back(header.at(it))
+        end
+        return move(col)
+    end
+    function find_broken_lines()
+        var lines = new array
+        foreach i in range(data.size)
+            if data.at(i).size != header.size
+                lines.push_back(i + 2)
+            end
+        end
+        return move(lines)
+    end
+end
+
+function read_csv(path)
+    var data = analysis.read_csv(path)
+    if data != null
+        var header = data.front
+        data.pop_front()
+        var df = new dataframe
+        df.header = new hash_map
+        foreach idx in range(header.size) do df.header.insert(header.at(idx), idx)
+        df.data = move(data)
+        return move(df)
+    end
+end
+
+constant write_csv = analysis.write_csv
