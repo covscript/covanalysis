@@ -11,14 +11,16 @@ CNI_ROOT_NAMESPACE {
 			var data = var::make<array>();
 			array& arr = data.val<array>();
 			for (const auto row: csv) {
-				var row_data = var::make<array>();
-				array& row_arr = row_data.val<array>();
-				for (const auto cell: row) {
-					var cell_data = var::make<cs::string>();
-					cell.read_value(cell_data.val<cs::string>());
-					row_arr.emplace_back(std::move(cell_data));
+				if (row.length() != 0) {
+					var row_data = var::make<array>();
+					array& row_arr = row_data.val<array>();
+					for (const auto cell: row) {
+						var cell_data = var::make<cs::string>();
+						cell.read_value(cell_data.val<cs::string>());
+						row_arr.emplace_back(std::move(cell_data));
+					}
+					arr.emplace_back(std::move(row_data));
 				}
-				arr.emplace_back(std::move(row_data));
 			}
 			return std::move(data);
 		}

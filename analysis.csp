@@ -2,36 +2,68 @@ package analysis
 
 import analysis_impl
 
+function __impl_make_dataframe(header, data)
+    var df = new dataframe
+    df.header_map = new hash_map
+    foreach idx in range(header.size) do df.header_map.insert(header.at(idx), idx)
+    df.header = header
+    df.data := data
+    return move(df)
+end
+
+function __impl_make_dataframe_groupby(header, groups, data)
+    var df = new dataframe
+    df.header_map = new hash_map
+    foreach idx in range(header.size) do df.header_map.insert(header.at(idx), idx)
+    df.header = header
+    df.data := data
+    return move(df)
+end
+
 class selection
-    var raw_data = null
     var cols = new array
+    var raw_data = null
+    var headers = null
     function filter(cond)
-        return analysis.filter(*raw_data, cols, cond)
+        return analysis_impl.filter(raw_data, cols, cond)
     end
     function __groupby_impl(iteration, data, idx)
-        var result = analysis.groupby(data, cols.at(idx))
+        var result = analysis_impl.groupby(data, cols.at(idx))
         if iteration > 0
             foreach it in result do it.second = __groupby_impl(iteration - 1, it.second, idx + 1)
         end
         return move(result)
     end
     function groupby()
-        return __groupby_impl(cols.size - 1, *raw_data, 0)
+        var data = __groupby_impl(cols.size - 1, raw_data, 0)
+        var groups = new hash_map
+        foreach idx in cols.size do groups.insert(name, header.at(cols.at(idx)))
+        return __impl_make_dataframe_groupby(header, groups, data)
+    end
+    function aggregate(...args)
+        
     end
 end
 
 class dataframe
+    var header_map = null
     var header = null
     var data = null
     function columns(...args)
-        var col = new selection
-        col.raw_data = &data
+        var sel = new selection
+        sel.data = &data
         if args.empty()
-            foreach it in range(header.size) do col.cols.push_back(it)
+            foreach it in range(header.size) do sel.cols.push_back(it)
+            sel.header = header
         else
-            foreach it in args do col.cols.push_back(header.at(it))
+            sel.header = new array
+            foreach it in args
+                link idx = header_map.at(it)
+                sel.header[idx] = it
+                sel.cols.push_back(idx)
+            end
         end
-        return move(col)
+        return move(sel)
     end
     function find_broken_lines()
         var lines = new array
@@ -42,19 +74,59 @@ class dataframe
         end
         return move(lines)
     end
-end
-
-function read_csv(path)
-    var data = analysis.read_csv(path)
-    if data != null
-        var header = data.front
-        data.pop_front()
-        var df = new dataframe
-        df.header = new hash_map
-        foreach idx in range(header.size) do df.header.insert(header.at(idx), idx)
-        df.data = move(data)
-        return move(df)
+    function to_csv(file)
+        var csv_data = data
+        csv_data.push_front(header)
+        analysis_impl.write_csv(csv_data, file)
     end
 end
 
-constant write_csv = analysis.write_csv
+function __impl_unstack_group_impl(group, target)
+    if typeid group == typeid array
+        foreach it in group do target.push_back(it)
+    else
+        foreach it in group do __impl_unstack_group_impl(it.second, target)
+    end 
+end
+
+function __impl_unstack_group(group)
+    var flat_data = new array
+    __impl_unstack_group_impl(group, flat_data)
+    return move(flat_data)
+end
+
+function __get_group_impl(iteration, group, target, idx)
+    if iteration == idx
+        target.push_back(group)
+    else
+        foreach it in group do __get_group_impl(iteration + 1, it.second, idx)
+    end
+end
+
+class dataframe_groupby
+    var header_map = null
+    var header = null
+    var groups = null
+    var data = null
+    function get_group(key)
+        var flat_data = new array
+        var idx = groups.at(key)
+        __get_group_impl(0, data, flat_data, idx)
+        return __impl_unstack_group(flat_data)
+    end
+    function unstack()
+        return __impl_unstack_group(data)
+    end
+    function aggregate(...args)
+
+    end
+end
+
+function read_csv(path)
+    var data = analysis_impl.read_csv(path)
+    if data != null
+        link header = data.front
+        data.pop_front()
+        return __impl_make_dataframe(header, data)
+    end
+end
