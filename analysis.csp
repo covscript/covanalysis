@@ -7,25 +7,26 @@ function __impl_make_dataframe(header, data)
     df.header_map = new hash_map
     foreach idx in range(header.size) do df.header_map.insert(header.at(idx), idx)
     df.header = header
-    df.data := data
+    df.data = data
     return move(df)
 end
 
 function __impl_make_dataframe_groupby(header, groups, data)
-    var df = new dataframe
+    var df = new dataframe_groupby
     df.header_map = new hash_map
     foreach idx in range(header.size) do df.header_map.insert(header.at(idx), idx)
     df.header = header
-    df.data := data
+    df.groups = groups
+    df.data = data
     return move(df)
 end
 
 class selection
     var cols = new array
     var raw_data = null
-    var headers = null
+    var header = null
     function filter(cond)
-        return analysis_impl.filter(raw_data, cols, cond)
+        return __impl_make_dataframe(header, analysis_impl.filter(*raw_data, cols, cond))
     end
     function __groupby_impl(iteration, data, idx)
         var result = analysis_impl.groupby(data, cols.at(idx))
@@ -35,10 +36,7 @@ class selection
         return move(result)
     end
     function groupby()
-        var data = __groupby_impl(cols.size - 1, raw_data, 0)
-        var groups = new hash_map
-        foreach idx in cols.size do groups.insert(name, header.at(cols.at(idx)))
-        return __impl_make_dataframe_groupby(header, groups, data)
+        return __impl_make_dataframe_groupby(header, __groupby_impl(cols.size - 1, *raw_data, 0), raw_data)
     end
     function aggregate(...args)
         
@@ -51,19 +49,19 @@ class dataframe
     var data = null
     function columns(...args)
         var sel = new selection
-        sel.data = &data
+        sel.raw_data = &data
+        sel.header = header
         if args.empty()
             foreach it in range(header.size) do sel.cols.push_back(it)
-            sel.header = header
         else
-            sel.header = new array
-            foreach it in args
-                link idx = header_map.at(it)
-                sel.header[idx] = it
-                sel.cols.push_back(idx)
-            end
+            foreach it in args do sel.cols.push_back(header_map.at(it))
         end
         return move(sel)
+    end
+    function select(...args)
+        var cols = new array
+        foreach it in args do cols.push_back(header_map.at(it))
+        return __impl_make_dataframe(args, analysis_impl.select(data, cols))
     end
     function find_broken_lines()
         var lines = new array
@@ -91,15 +89,18 @@ end
 
 function __impl_unstack_group(group)
     var flat_data = new array
-    __impl_unstack_group_impl(group, flat_data)
+    foreach it in group do __impl_unstack_group_impl(it, flat_data)
     return move(flat_data)
 end
 
-function __get_group_impl(iteration, group, target, idx)
-    if iteration == idx
+function __get_group_impl(group, key, target)
+    if typeid group != typeid hash_map
+        throw runtime.exception("Group not exist!")
+    end
+    if group.exist(key)
         target.push_back(group)
     else
-        foreach it in group do __get_group_impl(iteration + 1, it.second, idx)
+        foreach it in group do __get_group_impl(it.second, key, target)
     end
 end
 
@@ -109,13 +110,11 @@ class dataframe_groupby
     var groups = null
     var data = null
     function get_group(key)
-        var flat_data = new array
-        var idx = groups.at(key)
-        __get_group_impl(0, data, flat_data, idx)
-        return __impl_unstack_group(flat_data)
+        var lines = new array
+        __get_group_impl(groups, key, lines)
     end
     function unstack()
-        return __impl_unstack_group(data)
+        return __impl_make_dataframe(header, __impl_unstack_group(data))
     end
     function aggregate(...args)
 
@@ -127,6 +126,6 @@ function read_csv(path)
     if data != null
         link header = data.front
         data.pop_front()
-        return __impl_make_dataframe(header, data)
+        return __impl_make_dataframe(header, move(data))
     end
 end

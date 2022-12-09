@@ -44,6 +44,20 @@ CNI_ROOT_NAMESPACE {
 		return true;
 	}
 	CNI(write_csv)
+	array select(const array& data, const array& cols)
+	{
+		cs::array arr;
+		for (auto &line : data) {
+			var new_line_var = var::make<array>();
+			array& new_line = new_line_var.val<array>();
+			const array& line_arr = line.const_val<array>();
+			for (auto &col : cols)
+				new_line.emplace_back(line_arr.at(col.const_val<numeric>().as_integer()));
+			arr.emplace_back(new_line_var);
+		}
+		return move(arr);
+	}
+	CNI(select)
 	array filter(const array& data, const array& cols, const var& func)
 	{
 		cs::array arr;
@@ -55,7 +69,7 @@ CNI_ROOT_NAMESPACE {
 				for (auto &col : cols)
 					args.emplace_back(line_arr.at(col.const_val<numeric>().as_integer()));
 				if (cond.call(args).const_val<bool>())
-					arr.push_back(line);
+					arr.emplace_back(line);
 			}
 		}
 		else if (func.type() == typeid(object_method)) {
@@ -67,7 +81,7 @@ CNI_ROOT_NAMESPACE {
 				for (auto &col : cols)
 					args.emplace_back(line_arr.at(col.const_val<numeric>().as_integer()));
 				if (cond.call(args).const_val<bool>())
-					arr.push_back(line);
+					arr.emplace_back(line);
 			}
 		}
 		else
@@ -78,11 +92,11 @@ CNI_ROOT_NAMESPACE {
 	hash_map groupby(const array& data, std::size_t column)
 	{
 		hash_map map;
-		for (auto &line : data) {
-			const var& key = line.const_val<array>().at(column);
+		for (std::size_t i = 0; i < data.size(); ++i) {
+			const var& key = data[i].const_val<array>()[column];
 			if (map.count(key) == 0)
 				map.emplace(key, var::make<array>());
-			map[key].val<array>().push_back(line);
+			map[key].val<array>().emplace_back(var::make<numeric>(i));
 		}
 		return std::move(map);
 	}

@@ -1,1 +1,4 @@
+.vscode/
+.ecs_output/
+result.csv
 *.cse
