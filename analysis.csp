@@ -1,6 +1,6 @@
 package analysis
 
-import analysis_impl
+import analysis_impl as impl
 
 function __impl_make_dataframe(header, data)
     var df = new dataframe
@@ -26,10 +26,10 @@ class selection
     var raw_data = null
     var header = null
     function filter(cond)
-        return __impl_make_dataframe(header, analysis_impl.filter(*raw_data, cols, cond))
+        return __impl_make_dataframe(header, impl.filter(*raw_data, cols, cond))
     end
     function __groupby_impl(iteration, data, idx)
-        var result = analysis_impl.groupby(data, cols.at(idx))
+        var result = idx == 0 ? impl.groupby(data, cols.at(idx)) : impl.groupby_group(*raw_data, data, cols.at(idx))
         if iteration > 0
             foreach it in result do it.second = __groupby_impl(iteration - 1, it.second, idx + 1)
         end
@@ -61,7 +61,7 @@ class dataframe
     function select(...args)
         var cols = new array
         foreach it in args do cols.push_back(header_map.at(it))
-        return __impl_make_dataframe(args, analysis_impl.select(data, cols))
+        return __impl_make_dataframe(args, impl.select(data, cols))
     end
     function find_broken_lines()
         var lines = new array
@@ -75,7 +75,7 @@ class dataframe
     function to_csv(file)
         var csv_data = data
         csv_data.push_front(header)
-        analysis_impl.write_csv(csv_data, file)
+        impl.write_csv(csv_data, file)
     end
 end
 
@@ -87,10 +87,12 @@ function __impl_unstack_group_impl(group, target)
     end 
 end
 
-function __impl_unstack_group(group)
-    var flat_data = new array
-    foreach it in group do __impl_unstack_group_impl(it, flat_data)
-    return move(flat_data)
+function __impl_unstack_group(group, data)
+    var lines = new array
+    __impl_unstack_group_impl(group, lines)
+    var result = new array
+    foreach idx in lines do result.push_back(data.at(idx))
+    return move(result)
 end
 
 function __get_group_impl(group, key, target)
@@ -98,7 +100,7 @@ function __get_group_impl(group, key, target)
         throw runtime.exception("Group not exist!")
     end
     if group.exist(key)
-        target.push_back(group)
+        target.push_back(group.at(key))
     else
         foreach it in group do __get_group_impl(it.second, key, target)
     end
@@ -112,9 +114,10 @@ class dataframe_groupby
     function get_group(key)
         var lines = new array
         __get_group_impl(groups, key, lines)
+        return __impl_make_dataframe(header, __impl_unstack_group(lines, *data))
     end
     function unstack()
-        return __impl_make_dataframe(header, __impl_unstack_group(data))
+        return __impl_make_dataframe(header, __impl_unstack_group(groups, *data))
     end
     function aggregate(...args)
 
@@ -122,7 +125,7 @@ class dataframe_groupby
 end
 
 function read_csv(path)
-    var data = analysis_impl.read_csv(path)
+    var data = impl.read_csv(path)
     if data != null
         link header = data.front
         data.pop_front()

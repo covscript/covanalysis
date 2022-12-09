@@ -101,4 +101,17 @@ CNI_ROOT_NAMESPACE {
 		return std::move(map);
 	}
 	CNI(groupby)
+	hash_map groupby_group(const array& data, const array &group, std::size_t column)
+	{
+		hash_map map;
+		for (std::size_t i = 0; i < group.size(); ++i) {
+			std::size_t idx = group[i].const_val<numeric>().as_integer();
+			const var& key = data[idx].const_val<array>()[column];
+			if (map.count(key) == 0)
+				map.emplace(key, var::make<array>());
+			map[key].val<array>().emplace_back(var::make<numeric>(idx));
+		}
+		return std::move(map);
+	}
+	CNI(groupby_group)
 }
