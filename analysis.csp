@@ -84,9 +84,13 @@ class selection
     function groupby()
         return __impl_make_dataframe_groupby(header, raw_data, cols, __groupby_impl(cols.size - 1, *raw_data, 0))
     end
-    function aggregate(...args)
-        
-    end
+end
+
+function __impl_align(text, width)
+    var txt = " " + text
+    var pad = width - text.size - 1
+    foreach it in range(pad) do txt += " "
+    return move(txt)
 end
 
 class dataframe
@@ -109,6 +113,15 @@ class dataframe
         foreach it in args do cols.push_back(header_map.at(it))
         return __impl_make_dataframe(args, impl.select(data, cols))
     end
+    function aggregate(...args)
+        var result_header = new array, result_array = new array
+        foreach op in args
+            result_header.push_back(op.name)
+            op.column = header_map.at(op.column)
+            result_array.push_back(op.run(data))
+        end
+        return __impl_make_dataframe(result_header, {result_array})
+    end
     function find_broken_lines()
         var lines = new array
         foreach i in range(data.size)
@@ -122,6 +135,33 @@ class dataframe
         var csv_data = data
         csv_data.push_front(header)
         impl.write_csv(csv_data, file)
+        return this
+    end
+    function show()
+        var maxs = new array
+        var width = header.size
+        foreach it in header do maxs.push_back(it.size)
+        foreach line in data
+            if line.size != width
+                system.out.println("analysis.dataframe.show: broken line founded!")
+                return this
+            end
+            foreach i in range(width)
+                var size = to_string(line.at(i)).size
+                if size > maxs.at(i)
+                    maxs.at(i) = size
+                end
+            end
+        end
+        system.out.print("#")
+        foreach idx in range(width) do system.out.print(__impl_align(header.at(idx), maxs.at(idx) + 2) + "#")
+        system.out.println("")
+        foreach line in data
+            system.out.print("|")
+            foreach idx in range(width) do system.out.print(__impl_align(to_string(line.at(idx)), maxs.at(idx) + 2) + "|")
+            system.out.println("")
+        end
+        return this
     end
 end
 
@@ -152,16 +192,22 @@ function __impl_unstack_group(group, data)
     return move(result)
 end
 
-function __impl_aggregate_group(data, group, target, operator)
+function __impl_aggregate_group(stack, data, group, target, ops)
     if typeid group == typeid hash_map
         target = new hash_map
         foreach it in group
             var child_data = null
-            __impl_aggregate_group(data, it.second, child_data, operator)
+            stack.push_back(it.first)
+            __impl_aggregate_group(stack, data, it.second, child_data, ops)
+            stack.pop_back()
             target.insert(it.first, child_data)
         end
     else
-        target = operator.run(data)
+        target = stack
+        var lines = new array
+        foreach idx in group do lines.push_back(data.at(idx))
+        foreach op in ops do target.push_back(op.run(lines))
+        target = {target}
     end
 end
 
@@ -182,12 +228,16 @@ class dataframe_groupby
         return __impl_make_dataframe(header, __impl_unstack_group(groups, *data))
     end
     function aggregate(...args)
-        var result_header = new array, result_map = null
-        foreach idx in g_cols do result_header.push_back(header_map.at(idx))
+        var result_header = new array, result_map = null, result_array = new array
+        foreach idx in g_cols do result_header.push_back(header.at(idx))
         foreach op in args
             result_header.push_back(op.name)
-            __impl_aggregate_group(*data, groups, result_map, op)
+            op.column = header_map.at(op.column)
         end
+        var stack = new array
+        __impl_aggregate_group(stack, *data, groups, result_map, args)
+        __impl_unstack_group_impl(result_map, result_array)
+        return __impl_make_dataframe(result_header, result_array)
     end
 end
 

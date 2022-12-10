@@ -1,7 +1,7 @@
 import analysis
 var df = analysis.read_csv("tests/cwurData.csv")
 # system.out.println(df.find_broken_lines())
-df.columns("country", "year")
+var data = df.columns("country", "year")
     .groupby()
     .aggregate(analysis.sum("patents"), analysis.avg("score").as("score_avg"))
-    .to_csv("./result.csv")
+    .show()
