@@ -1,5 +1,6 @@
 #include <covscript/cni.hpp>
 #include <covscript/dll.hpp>
+#include <cstdlib>
 #include "csv2.hpp"
 
 CNI_ROOT_NAMESPACE {
@@ -52,7 +53,7 @@ CNI_ROOT_NAMESPACE {
 			array& new_line = new_line_var.val<array>();
 			const array& line_arr = line.const_val<array>();
 			for (auto &col : cols)
-				new_line.emplace_back(line_arr.at(col.const_val<numeric>().as_integer()));
+				new_line.emplace_back(line_arr[col.const_val<numeric>().as_integer()]);
 			arr.emplace_back(new_line_var);
 		}
 		return move(arr);
@@ -67,7 +68,7 @@ CNI_ROOT_NAMESPACE {
 				vector args;
 				const array& line_arr = line.const_val<array>();
 				for (auto &col : cols)
-					args.emplace_back(line_arr.at(col.const_val<numeric>().as_integer()));
+					args.emplace_back(line_arr[col.const_val<numeric>().as_integer()]);
 				if (cond.call(args).const_val<bool>())
 					arr.emplace_back(line);
 			}
@@ -79,7 +80,7 @@ CNI_ROOT_NAMESPACE {
 				vector args{om.object};
 				const array& line_arr = line.const_val<array>();
 				for (auto &col : cols)
-					args.emplace_back(line_arr.at(col.const_val<numeric>().as_integer()));
+					args.emplace_back(line_arr[col.const_val<numeric>().as_integer()]);
 				if (cond.call(args).const_val<bool>())
 					arr.emplace_back(line);
 			}
@@ -114,4 +115,40 @@ CNI_ROOT_NAMESPACE {
 		return std::move(map);
 	}
 	CNI(groupby_group)
+	double sum(const array& data, std::size_t column)
+	{
+		double sum = 0;
+		for (auto &line : data)
+			sum += std::atof(line.const_val<array>()[column].const_val<string>().c_str());
+		return sum;
+	}
+	CNI(sum)
+	double avg(const array& data, std::size_t column)
+	{
+		double sum = 0;
+		for (auto &line : data)
+			sum += std::atof(line.const_val<array>()[column].const_val<string>().c_str());
+		return sum/data.size();
+	}
+	CNI(avg)
+	std::size_t count(const array& data, std::size_t column)
+	{
+		std::size_t c = 0;
+		for (auto &line : data)
+			if (!line.const_val<array>()[column].const_val<string>().empty())
+				++c;
+		return c;
+	}
+	CNI(count)
+	std::size_t count_distinct(const array& data, std::size_t column)
+	{
+		cs::set_t<string> set;
+		for (auto &line : data)
+			set.insert(line.const_val<array>()[column].const_val<string>());
+		if (set.count("") > 0)
+			return set.size() - 1;
+		else
+			return set.size();
+	}
+	CNI(count_distinct)
 }

@@ -11,14 +11,60 @@ function __impl_make_dataframe(header, data)
     return move(df)
 end
 
-function __impl_make_dataframe_groupby(header, groups, data)
+function __impl_make_dataframe_groupby(header, data, cols, groups)
     var df = new dataframe_groupby
     df.header_map = new hash_map
     foreach idx in range(header.size) do df.header_map.insert(header.at(idx), idx)
     df.header = header
     df.groups = groups
+    df.g_cols = cols
     df.data = data
     return move(df)
+end
+
+struct operator
+    var name = null
+    var column = null
+    var impl_func = null
+    function as(str)
+        name = str
+        return this
+    end
+    function run(data)
+        return impl_func(data, column)
+    end
+end
+
+function make_operator(name, col, func)
+    var op = new operator
+    op.name = name
+    op.column = col
+    op.impl_func = func
+    return move(op)
+end
+
+function avg(col)
+    return make_operator("avg", col, impl.avg)
+end
+
+function average(col)
+    return make_operator("avg", col, impl.avg)
+end
+
+function sum(col)
+    return make_operator("sum", col, impl.sum)
+end
+
+function summery(col)
+    return make_operator("sum", col, impl.sum)
+end
+
+function count(col)
+    return make_operator("count", col, impl.count)
+end
+
+function count_distinct(col)
+    return make_operator("count_distinct", col, impl.count_distinct)
 end
 
 class selection
@@ -36,7 +82,7 @@ class selection
         return move(result)
     end
     function groupby()
-        return __impl_make_dataframe_groupby(header, __groupby_impl(cols.size - 1, *raw_data, 0), raw_data)
+        return __impl_make_dataframe_groupby(header, raw_data, cols, __groupby_impl(cols.size - 1, *raw_data, 0))
     end
     function aggregate(...args)
         
@@ -79,22 +125,6 @@ class dataframe
     end
 end
 
-function __impl_unstack_group_impl(group, target)
-    if typeid group == typeid array
-        foreach it in group do target.push_back(it)
-    else
-        foreach it in group do __impl_unstack_group_impl(it.second, target)
-    end 
-end
-
-function __impl_unstack_group(group, data)
-    var lines = new array
-    __impl_unstack_group_impl(group, lines)
-    var result = new array
-    foreach idx in lines do result.push_back(data.at(idx))
-    return move(result)
-end
-
 function __get_group_impl(group, key, target)
     if typeid group != typeid hash_map
         throw runtime.exception("Group not exist!")
@@ -106,10 +136,40 @@ function __get_group_impl(group, key, target)
     end
 end
 
+function __impl_unstack_group_impl(group, target)
+    if typeid group == typeid hash_map
+        foreach it in group do __impl_unstack_group_impl(it.second, target)
+    else
+        foreach it in group do target.push_back(it)
+    end 
+end
+
+function __impl_unstack_group(group, data)
+    var lines = new array
+    __impl_unstack_group_impl(group, lines)
+    var result = new array
+    foreach idx in lines do result.push_back(data.at(idx))
+    return move(result)
+end
+
+function __impl_aggregate_group(data, group, target, operator)
+    if typeid group == typeid hash_map
+        target = new hash_map
+        foreach it in group
+            var child_data = null
+            __impl_aggregate_group(data, it.second, child_data, operator)
+            target.insert(it.first, child_data)
+        end
+    else
+        target = operator.run(data)
+    end
+end
+
 class dataframe_groupby
     var header_map = null
     var header = null
     var groups = null
+    var g_cols = null
     var data = null
     function get_group(key)
         var group_set = new array, lines = new array, result = new array
@@ -122,7 +182,12 @@ class dataframe_groupby
         return __impl_make_dataframe(header, __impl_unstack_group(groups, *data))
     end
     function aggregate(...args)
-
+        var result_header = new array, result_map = null
+        foreach idx in g_cols do result_header.push_back(header_map.at(idx))
+        foreach op in args
+            result_header.push_back(op.name)
+            __impl_aggregate_group(*data, groups, result_map, op)
+        end
     end
 end
 
