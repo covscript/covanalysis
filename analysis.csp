@@ -112,9 +112,11 @@ class dataframe_groupby
     var groups = null
     var data = null
     function get_group(key)
-        var lines = new array
-        __get_group_impl(groups, key, lines)
-        return __impl_make_dataframe(header, __impl_unstack_group(lines, *data))
+        var group_set = new array, lines = new array, result = new array
+        __get_group_impl(groups, key, group_set)
+        foreach it in group_set do __impl_unstack_group_impl(it, lines)
+        foreach idx in lines do result.push_back(data->at(idx))
+        return __impl_make_dataframe(header, result)
     end
     function unstack()
         return __impl_make_dataframe(header, __impl_unstack_group(groups, *data))
