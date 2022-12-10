@@ -1,10 +1,10 @@
 import analysis
-var df = analysis.read_csv("cwurData.csv")
+var df = analysis.read_csv("tests/cwurData.csv")
 # system.out.println(df.find_broken_lines())
 df.columns("country", "quality_of_education")
     .filter([](name, quality)->
         name == "USA" &&
         quality.to_number() <= 10
     )
-    .select("institution")
+    .select("institution", "quality_of_education")
     .to_csv("./result.csv")

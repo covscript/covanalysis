@@ -6,7 +6,7 @@ CNI_ROOT_NAMESPACE {
 	using namespace cs;
 	var read_csv(const std::string& path)
 	{
-		csv2::Reader<csv2::delimiter<','>, csv2::quote_character<'"'>, csv2::first_row_is_header<false>, csv2::trim_policy::trim_whitespace> csv;
+		csv2::Reader<csv2::delimiter<','>, csv2::quote_character<'"'>, csv2::first_row_is_header<false>, csv2::trim_policy::trim_characters<' ', '\t', '\r'>> csv;
 		if (csv.mmap(path)) {
 			var data = var::make<array>();
 			array& arr = data.val<array>();

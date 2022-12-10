@@ -1,8 +1,8 @@
 import analysis
-var df = analysis.read_csv("cwurData.csv")
+var df = analysis.read_csv("tests/cwurData.csv")
 # system.out.println(df.find_broken_lines())
 df.columns("country", "year")
     .groupby()
     .get_group("USA")
-    .select("institution")
+    .select("institution", "year")
     .to_csv("./result.csv")
