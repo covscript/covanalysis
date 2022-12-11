@@ -1,0 +1,46 @@
+import parsergen
+
+function collect_ids(tree, result)
+    foreach it in tree.nodes
+        if typeid it == typeid parsergen.syntax_tree
+            if it.root == "visit-expr"
+                link nodes = it.nodes
+                if typeid nodes[0] == typeid parsergen.syntax_tree && nodes[0].root == "object"
+                    nodes := nodes[0].nodes
+                    if typeid nodes[0] == typeid parsergen.syntax_tree && nodes[0].root == "element"
+                        nodes := nodes[0].nodes
+                        if nodes.size == 1 && typeid nodes[0] == typeid parsergen.token_type && nodes[0].type == "id"
+                            result.push_back(nodes[0].data)
+                        end
+                    end
+                end
+            else
+                collect_ids(it, result)
+            end
+        end
+    end
+end
+
+function cond_hook(ecs, ast, pos)
+    if ast == null
+        ecs.error(pos, "CSX function \"analysis::cond\" require arguments")
+    end
+    var ids = new array
+    collect_ids(ast, ids)
+    var rargs = new string
+    var sargs = new string
+    foreach it in ids
+        rargs += it + ", "
+        sargs += "\"" + it + "\", "
+    end
+    rargs.cut(2)
+    sargs.cut(2)
+    ecs.target.print("{" + sargs + "}, ")
+    ecs.target.print("[](" + rargs + ")->(")
+    ecs.visit_cond_expr(ast.nodes)
+    ecs.target.print(")")
+end
+
+function ecsx_main(hooks)
+    hooks.insert("cond", cond_hook)
+end
