@@ -1,0 +1,12 @@
+{
+    "Type": "Package",
+    "Name": "analysis.ecsx",
+    "Info": "Data Analysis ECSX Module",
+    "Author": "Covariant Script Organization",
+    "Version": "1.1.0",
+    "Target": "analysis.ecsx",
+    "Dependencies": [
+        "analysis",
+        "analysis_impl"
+    ]
+}
