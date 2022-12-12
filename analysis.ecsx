@@ -1,3 +1,5 @@
+# Grammar Extension for CovScript 4
+
 import parsergen
 
 function collect_ids(tree, result)
@@ -23,7 +25,7 @@ end
 
 function cond_hook(ecs, ast, pos)
     if ast == null
-        ecs.error(pos, "CSX function \"analysis::cond\" require arguments")
+        ecs.error(pos, "ECSX function \"analysis::cond\" require arguments")
     end
     var ids = new array
     collect_ids(ast, ids)
@@ -37,7 +39,7 @@ function cond_hook(ecs, ast, pos)
     sargs.cut(2)
     ecs.target.print("{" + sargs + "}, ")
     ecs.target.print("[](" + rargs + ")->(")
-    ecs.visit_cond_expr(ast.nodes)
+    ecs.visit_basic_expr(ast.nodes)
     ecs.target.print(")")
 end
 
