@@ -23,12 +23,24 @@ function collect_ids(tree, result)
     end
 end
 
+function find_relat_expr(tree, result)
+    foreach it in tree.nodes
+        if typeid it == typeid parsergen.syntax_tree
+            if it.root == "relat-expr"
+                return collect_ids(it.nodes[0], result)
+            else
+                find_relat_expr(it, result)
+            end
+        end
+    end
+end
+
 function cond_hook(ecs, ast, pos)
     if ast == null
         ecs.error(pos, "ECSX function \"analysis::cond\" require arguments")
     end
     var ids = new array
-    collect_ids(ast, ids)
+    find_relat_expr(ast, ids)
     var rargs = new string
     var sargs = new string
     foreach it in ids
