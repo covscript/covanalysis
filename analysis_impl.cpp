@@ -56,7 +56,7 @@ CNI_ROOT_NAMESPACE {
 				new_line.emplace_back(line_arr[col.const_val<numeric>().as_integer()]);
 			arr.emplace_back(new_line_var);
 		}
-		return move(arr);
+		return std::move(arr);
 	}
 	CNI(select)
 	array filter(const array& data, const array& cols, const var& func)

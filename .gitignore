@@ -2,3 +2,4 @@
 .ecs_output/
 result.csv
 *.cse
+.DS_Store
