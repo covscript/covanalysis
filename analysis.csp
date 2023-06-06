@@ -1,6 +1,7 @@
 package analysis
 
 import analysis_impl as impl
+import codec.json as json
 
 # Aggregate Operators
 
@@ -62,6 +63,12 @@ class dataframe
     var header_map = null
     var header = null
     var data = null
+    function construct(_header)
+        header_map = new hash_map
+        foreach idx in range(_header.size) do header_map.insert(_header.at(idx), idx)
+        header = _header
+        data = new array
+    end
     function filter(args, cond)
         if args.empty()
             return this
@@ -113,6 +120,15 @@ class dataframe
         csv_data.push_front(header)
         impl.write_csv(csv_data, file)
         return this
+    end
+    function to_json()
+        var j_arr = json.value.make_array()
+        foreach line in data
+            var j_obj = json.value.make_object()
+            foreach i in range(header.size) do j_obj.set_member(header.at(i), json.value.make_string(to_string(line.at(i))))
+            j_arr.arr_append(j_obj)
+        end
+        return move(j_arr)
     end
     function show()
         var maxs = new array
@@ -208,6 +224,24 @@ function __impl_aggregate_group(stack, data, group, target, ops)
     end
 end
 
+function __impl_attach_group(data, group, target, ops)
+    if typeid group == typeid hash_map
+        target = new hash_map
+        foreach it in group
+            var child_data = null
+            __impl_attach_group(data, it.second, child_data, ops)
+            target.insert(it.first, child_data)
+        end
+    else
+        target = new array
+        var result = new array
+        var lines = new array
+        foreach idx in group do lines.push_back(data.at(idx))
+        foreach op in ops do result.push_back(op.run(lines))
+        foreach it in lines do target.push_back({it..., result...})
+    end
+end
+
 class dataframe_groupby
     var header_map = null
     var header = null
@@ -233,6 +267,16 @@ class dataframe_groupby
         end
         var stack = new array
         __impl_aggregate_group(stack, *data, groups, result_map, args)
+        __impl_unstack_group_impl(result_map, result_array)
+        return __impl_make_dataframe(result_header, result_array)
+    end
+    function attach(...args)
+        var result_header = header, result_map = null, result_array = new array
+        foreach op in args
+            result_header.push_back(op.name)
+            op.column = header_map.at(op.column)
+        end
+        __impl_attach_group(*data, groups, result_map, args)
         __impl_unstack_group_impl(result_map, result_array)
         return __impl_make_dataframe(result_header, result_array)
     end

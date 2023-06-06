@@ -3,9 +3,10 @@
     "Name": "analysis",
     "Info": "Data Analysis Framework",
     "Author": "Covariant Script Organization",
-    "Version": "1.1.0",
+    "Version": "1.1.1",
     "Target": "analysis.csp",
     "Dependencies": [
-        "analysis_impl"
+        "analysis_impl",
+        "codec"
     ]
 }
