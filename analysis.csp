@@ -106,6 +106,24 @@ class dataframe
         end
         return __impl_make_dataframe(result_header, {result_array})
     end
+    function attach(...args)
+        var result_header = header, result_array = new array
+        foreach op in args
+            result_header.push_back(op.name)
+            op.column = header_map.at(op.column)
+            result_array.push_back(op.run(data))
+        end
+        var new_data = data
+        foreach line in new_data
+            foreach it in result_array do line.push_back(it)
+        end
+        return __impl_make_dataframe(result_header, new_data)
+    end
+    function apply(col, func)
+        var col_idx = header_map.at(col)
+        foreach line in data do func(line.at(col_idx))
+        return this
+    end
     function find_broken_lines()
         var lines = new array
         foreach i in range(data.size)
