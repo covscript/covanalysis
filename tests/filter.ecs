@@ -1,10 +1,10 @@
-import analysis as anal
-var df = anal.read_csv("tests/cwurData.csv")
+import analysis
+var df = analysis.read_csv("tests/cwurData.csv")
 var tc = "USA", tq = 10
 df = df.filter(
-    anal::cond(
+    analysis::cond(
         country == tc &&
-        quality_of_education.to_number() <= tq
+        quality_of_education as number <= tq
     )
 )
 df.select(
@@ -12,5 +12,5 @@ df.select(
     "quality_of_education"
 ).show()
 df.aggregate(
-    anal.avg("score").as("score_avg")
+    analysis.avg("score").as("score_avg")
 ).show()

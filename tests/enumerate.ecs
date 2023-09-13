@@ -1,0 +1,11 @@
+import analysis
+var df = analysis.read_csv("tests/cwurData.csv")
+df = df.pick([](record){
+    return record.by_name("country") == "USA" &&
+        record.by_name("quality_of_education") as number <= 10
+}).select("world_rank", "institution")
+df.show()
+df.by_index(0).show()
+df.enumerate([](idx, record){
+    system.out.println(idx as string + "\t" + record.by_name("institution"))
+})

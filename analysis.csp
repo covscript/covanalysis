@@ -59,6 +59,51 @@ function __impl_align(text, width)
     return move(txt)
 end
 
+function __impl_show(header, data)
+    var maxs = new array
+    var width = header.size
+    foreach it in header do maxs.push_back(it.size)
+    foreach line in data
+        if line.size != width
+            system.out.println("analysis.dataframe.show: broken line founded!")
+            return this
+        end
+        foreach i in range(width)
+            var size = to_string(line.at(i)).size
+            if size > maxs.at(i)
+                maxs.at(i) = size
+            end
+        end
+    end
+    system.out.print("#")
+    foreach idx in range(width) do system.out.print(__impl_align(header.at(idx), maxs.at(idx) + 2) + "#")
+    system.out.println("")
+    foreach line in data
+        system.out.print("|")
+        foreach idx in range(width) do system.out.print(__impl_align(to_string(line.at(idx)), maxs.at(idx) + 2) + "|")
+        system.out.println("")
+    end
+end
+
+class datarecord
+    var host = null
+    var data = null
+    function construct(df, line)
+        host = &df
+        data = &line
+    end
+    function by_name(name)
+        return data->at(host->header_map.at(name))
+    end
+    function by_index(idx)
+        return data->at(idx)
+    end
+    function show()
+        __impl_show(host->header, {*data})
+        return this
+    end
+end
+
 class dataframe
     var header_map = null
     var header = null
@@ -124,6 +169,38 @@ class dataframe
         foreach line in data do func(line.at(col_idx))
         return this
     end
+    function enumerate(func)
+        foreach i in range(data.size)
+            var record = new datarecord
+            record.construct(this, data.at(i))
+            func(i, record)
+        end
+        return this
+    end
+    function pick(func)
+        var results = new array
+        foreach line in data
+            var record = new datarecord
+            record.construct(this, line)
+            if func(record)
+                results.push_back(line)
+            end
+        end
+        return __impl_make_dataframe(header, move(results))
+    end
+    function by_index(idx)
+        var record = new datarecord
+        record.construct(this, data.at(idx))
+        return move(record)
+    end
+    function append(...lines)
+        foreach line in lines
+            if line.size == header.size
+                data.push_back(move(line))
+            end
+        end
+        return this
+    end
     function find_broken_lines()
         var lines = new array
         foreach i in range(data.size)
@@ -149,29 +226,7 @@ class dataframe
         return move(j_arr)
     end
     function show()
-        var maxs = new array
-        var width = header.size
-        foreach it in header do maxs.push_back(it.size)
-        foreach line in data
-            if line.size != width
-                system.out.println("analysis.dataframe.show: broken line founded!")
-                return this
-            end
-            foreach i in range(width)
-                var size = to_string(line.at(i)).size
-                if size > maxs.at(i)
-                    maxs.at(i) = size
-                end
-            end
-        end
-        system.out.print("#")
-        foreach idx in range(width) do system.out.print(__impl_align(header.at(idx), maxs.at(idx) + 2) + "#")
-        system.out.println("")
-        foreach line in data
-            system.out.print("|")
-            foreach idx in range(width) do system.out.print(__impl_align(to_string(line.at(idx)), maxs.at(idx) + 2) + "|")
-            system.out.println("")
-        end
+        __impl_show(header, data)
         return this
     end
 end

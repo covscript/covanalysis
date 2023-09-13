@@ -5,6 +5,9 @@ import parsergen
 function collect_ids(tree, result)
     foreach it in tree.nodes
         if typeid it == typeid parsergen.syntax_tree
+            if it.root == "conv-expr"
+                return collect_ids(it.nodes[0], result)
+            end
             if it.root == "visit-expr"
                 link nodes = it.nodes
                 if typeid nodes[0] == typeid parsergen.syntax_tree && nodes[0].root == "object"
