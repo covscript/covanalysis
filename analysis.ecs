@@ -1,0 +1,388 @@
+package analysis
+
+import analysis_impl as impl
+import codec.json as json
+import regex
+
+# Aggregate Operators
+
+struct operator
+    var name = null
+    var column = null
+    var impl_func = null
+    function as(str)
+        name = str
+        return this
+    end
+    function run(data)
+        return impl_func(data, column)
+    end
+end
+
+function __impl_make_operator(name, col, func)
+    var op = new operator
+    op.name = name
+    op.column = col
+    op.impl_func = func
+    return move(op)
+end
+
+function avg(col)
+    return __impl_make_operator("avg", col, impl.avg)
+end
+
+function average(col)
+    return __impl_make_operator("avg", col, impl.avg)
+end
+
+function sum(col)
+    return __impl_make_operator("sum", col, impl.sum)
+end
+
+function summery(col)
+    return __impl_make_operator("sum", col, impl.sum)
+end
+
+function count(col)
+    return __impl_make_operator("count", col, impl.count)
+end
+
+function count_distinct(col)
+    return __impl_make_operator("count_distinct", col, impl.count_distinct)
+end
+
+# Dataframe
+
+function __impl_align(text, width)
+    var txt = " " + text
+    var pad = width - text.size - 1
+    foreach it in range(pad) do txt += " "
+    return move(txt)
+end
+
+function __impl_show(header, data)
+    var maxs = new array
+    var width = header.size
+    foreach it in header do maxs.push_back(it.size)
+    foreach line in data
+        if line.size != width
+            system.out.println("analysis.dataframe.show: broken line founded!")
+            return this
+        end
+        foreach i in range(width)
+            var size = to_string(line.at(i)).size
+            if size > maxs.at(i)
+                maxs.at(i) = size
+            end
+        end
+    end
+    system.out.print("#")
+    foreach idx in range(width) do system.out.print(__impl_align(header.at(idx), maxs.at(idx) + 2) + "#")
+    system.out.println("")
+    foreach line in data
+        system.out.print("|")
+        foreach idx in range(width) do system.out.print(__impl_align(to_string(line.at(idx)), maxs.at(idx) + 2) + "|")
+        system.out.println("")
+    end
+end
+
+class datarecord
+    var host = null
+    var data = null
+    function construct(df, line)
+        host = &df
+        data = &line
+    end
+    function by_name(name)
+        return data->at(host->header_map.at(name))
+    end
+    function by_index(idx)
+        return data->at(idx)
+    end
+    function show()
+        __impl_show(host->header, {*data})
+        return this
+    end
+end
+
+class dataframe
+    var header_map = null
+    var header = null
+    var data = null
+    function construct(_header)
+        header_map = new hash_map
+        foreach idx in range(_header.size) do header_map.insert(_header.at(idx), idx)
+        header = _header
+        data = new array
+    end
+    function filter(args, cond)
+        if args.empty()
+            return this
+        end
+        var cols = new array
+        foreach it in args do cols.push_back(header_map.at(it))
+        return __impl_make_dataframe(header, impl.filter(data, cols, cond))
+    end
+    function __groupby_impl(cols, iteration, child_data, idx)
+        var result = (idx == 0 ? impl.groupby(child_data, cols.at(idx)) : impl.groupby_group(data, child_data, cols.at(idx)))
+        if iteration > 0
+            foreach it in result do it.second = __groupby_impl(cols, iteration - 1, it.second, idx + 1)
+        end
+        return move(result)
+    end
+    function groupby(...args)
+        if args.empty()
+            return this
+        end
+        var cols = new array
+        foreach it in args do cols.push_back(header_map.at(it))
+        return __impl_make_dataframe_groupby(header, &data, cols, __groupby_impl(cols, cols.size - 1, data, 0))
+    end
+    function select(...args)
+        var cols = new array
+        foreach it in args do cols.push_back(header_map.at(it))
+        return __impl_make_dataframe(args, impl.select(data, cols))
+    end
+    function aggregate(...args)
+        var result_header = new array, result_array = new array
+        foreach op in args
+            result_header.push_back(op.name)
+            op.column = header_map.at(op.column)
+            result_array.push_back(op.run(data))
+        end
+        return __impl_make_dataframe(result_header, {result_array})
+    end
+    function attach(...args)
+        var result_header = header, result_array = new array
+        foreach op in args
+            result_header.push_back(op.name)
+            op.column = header_map.at(op.column)
+            result_array.push_back(op.run(data))
+        end
+        var new_data = data
+        foreach line in new_data
+            foreach it in result_array do line.push_back(it)
+        end
+        return __impl_make_dataframe(result_header, new_data)
+    end
+    function apply(col, func)
+        var col_idx = header_map.at(col)
+        foreach line in data do func(line.at(col_idx))
+        return this
+    end
+    function enumerate(func)
+        foreach i in range(data.size)
+            func(i, new datarecord{this, data.at(i)})
+        end
+        return this
+    end
+    function foreach(func)
+        foreach it in data
+            func(new datarecord{this, it})
+        end
+        return this
+    end
+    function pick(func)
+        var results = new array
+        foreach line in data
+            if func(new datarecord{this, line})
+                results.push_back(line)
+            end
+        end
+        return __impl_make_dataframe(header, move(results))
+    end
+    function by_index(idx)
+        return new datarecord{this, data.at(idx)}
+    end
+    function append(...lines)
+        foreach line in lines
+            if line.size == header.size
+                data.push_back(move(line))
+            end
+        end
+        return this
+    end
+    function find_broken_lines()
+        var lines = new array
+        foreach i in range(data.size)
+            if data.at(i).size != header.size
+                lines.push_back(i + 2)
+            end
+        end
+        return move(lines)
+    end
+    function to_csv(file)
+        var csv_data = data
+        csv_data.push_front(header)
+        impl.write_csv(csv_data, file)
+        return this
+    end
+    function to_json()
+        var j_arr = json.value.make_array()
+        foreach line in data
+            var j_obj = json.value.make_object()
+            foreach i in range(header.size) do j_obj.set_member(header.at(i), json.value.make_string(to_string(line.at(i))))
+            j_arr.arr_append(j_obj)
+        end
+        return move(j_arr)
+    end
+    function show()
+        __impl_show(header, data)
+        return this
+    end
+end
+
+function __impl_make_dataframe(header, data)
+    var df = new dataframe
+    df.header_map = new hash_map
+    foreach idx in range(header.size) do df.header_map.insert(header.at(idx), idx)
+    df.header = header
+    df.data = data
+    return move(df)
+end
+
+function read_csv(path)
+    var data = impl.read_csv(path)
+    if data != null
+        link header = data.front
+        data.pop_front()
+        return __impl_make_dataframe(header, move(data))
+    end
+end
+
+# Dataframe Groupby
+
+function __impl_get_group(group, key, target)
+    if typeid group != typeid hash_map
+        throw runtime.exception("Group not exist!")
+    end
+    if group.exist(key)
+        target.push_back(group.at(key))
+    else
+        foreach it in group do __get_group_impl(it.second, key, target)
+    end
+end
+
+function __impl_unstack_group_impl(group, target)
+    if typeid group == typeid hash_map
+        foreach it in group do __impl_unstack_group_impl(it.second, target)
+    else
+        foreach it in group do target.push_back(it)
+    end 
+end
+
+function __impl_unstack_group(group, data)
+    var lines = new array
+    __impl_unstack_group_impl(group, lines)
+    var result = new array
+    foreach idx in lines do result.push_back(data.at(idx))
+    return move(result)
+end
+
+function __impl_aggregate_group(stack, data, group, target, ops)
+    if typeid group == typeid hash_map
+        target = new hash_map
+        foreach it in group
+            var child_data = null
+            stack.push_back(it.first)
+            __impl_aggregate_group(stack, data, it.second, child_data, ops)
+            stack.pop_back()
+            target.insert(it.first, child_data)
+        end
+    else
+        target = stack
+        var lines = new array
+        foreach idx in group do lines.push_back(data.at(idx))
+        foreach op in ops do target.push_back(op.run(lines))
+        target = {target}
+    end
+end
+
+function __impl_attach_group(data, group, target, ops)
+    if typeid group == typeid hash_map
+        target = new hash_map
+        foreach it in group
+            var child_data = null
+            __impl_attach_group(data, it.second, child_data, ops)
+            target.insert(it.first, child_data)
+        end
+    else
+        target = new array
+        var result = new array
+        var lines = new array
+        foreach idx in group do lines.push_back(data.at(idx))
+        foreach op in ops do result.push_back(op.run(lines))
+        foreach it in lines do target.push_back({it..., result...})
+    end
+end
+
+class dataframe_groupby
+    var header_map = null
+    var header = null
+    var groups = null
+    var g_cols = null
+    var data = null
+    function get_group(key)
+        var group_set = new array, lines = new array, result = new array
+        __get_group_impl(groups, key, group_set)
+        foreach it in group_set do __impl_unstack_group_impl(it, lines)
+        foreach idx in lines do result.push_back(data->at(idx))
+        return __impl_make_dataframe(header, result)
+    end
+    function unstack()
+        return __impl_make_dataframe(header, __impl_unstack_group(groups, *data))
+    end
+    function aggregate(...args)
+        var result_header = new array, result_map = null, result_array = new array
+        foreach idx in g_cols do result_header.push_back(header.at(idx))
+        foreach op in args
+            result_header.push_back(op.name)
+            op.column = header_map.at(op.column)
+        end
+        var stack = new array
+        __impl_aggregate_group(stack, *data, groups, result_map, args)
+        __impl_unstack_group_impl(result_map, result_array)
+        return __impl_make_dataframe(result_header, result_array)
+    end
+    function attach(...args)
+        var result_header = header, result_map = null, result_array = new array
+        foreach op in args
+            result_header.push_back(op.name)
+            op.column = header_map.at(op.column)
+        end
+        __impl_attach_group(*data, groups, result_map, args)
+        __impl_unstack_group_impl(result_map, result_array)
+        return __impl_make_dataframe(result_header, result_array)
+    end
+end
+
+function __impl_make_dataframe_groupby(header, data, cols, groups)
+    var df = new dataframe_groupby
+    df.header_map = new hash_map
+    foreach idx in range(header.size) do df.header_map.insert(header.at(idx), idx)
+    df.header = header
+    df.groups = groups
+    df.g_cols = cols
+    df.data = data
+    return move(df)
+end
+
+# Public Methods
+
+function enumerate(data, func)
+    foreach i in range(data.size)
+        func(i, data.at(i))
+    end
+end
+
+function match_regex(reg, str)
+    var result = reg.match(str)
+    if result.empty()
+        return null
+    end
+    var data = new array
+    foreach i in range(1, result.size())
+        data.push_back(result.str(i))
+    end
+    return move(data)
+end
