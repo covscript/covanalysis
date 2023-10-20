@@ -1,0 +1,11 @@
+{
+    "Type": "Package",
+    "Name": "analysis.csym",
+    "Info": "Data Analysis Framework cSYM Module",
+    "Author": "CovScript Organization",
+    "Version": "1.2.1",
+    "Target": "analysis.csym",
+    "Dependencies": [
+        "analysis"
+    ]
+}
