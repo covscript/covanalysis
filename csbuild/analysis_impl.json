@@ -3,7 +3,7 @@
     "Name": "analysis_impl",
     "Info": "Data Analysis Implementation",
     "Author": "CovScript Organization",
-    "Version": "1.1.0",
+    "Version": "1.1.1",
     "Source": "analysis_impl.cpp",
     "Target": "analysis_impl.cse",
     "Dependencies": []

@@ -202,6 +202,31 @@ class dataframe
         end
         return this
     end
+    function join_v(df, fill_val)
+        var index = new array
+        foreach key in header
+            if df.header_map.exist(key)
+                index.push_back(df.header_map.at(key))
+            else
+                index.push_back(null)
+            end
+        end
+        foreach rec in df.data
+            var line = new array
+            foreach pos in index
+                if pos != null
+                    line.push_back(rec.at(pos))
+                else
+                    line.push_back(fill_val)
+                end
+            end
+            data.push_back(move(line))
+        end
+        return this
+    end
+    function join(df)
+        return join_v(df, null)
+    end
     function find_broken_lines()
         var lines = new array
         foreach i in range(data.size)

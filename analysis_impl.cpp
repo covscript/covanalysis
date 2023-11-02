@@ -16,8 +16,8 @@ CNI_ROOT_NAMESPACE {
 					var row_data = var::make<array>();
 					array& row_arr = row_data.val<array>();
 					for (const auto cell: row) {
-						var cell_data = var::make<cs::string>();
-						cell.read_value(cell_data.val<cs::string>());
+						cs::string cell_data;
+						cell.read_value(cell_data);
 						row_arr.emplace_back(std::move(cell_data));
 					}
 					arr.emplace_back(std::move(row_data));
